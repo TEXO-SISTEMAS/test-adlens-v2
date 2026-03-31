@@ -943,6 +943,7 @@ let answers = {};
 let currentQ = 1;
 let showingBlockResult = false;
 let saveTimeout = null;
+let isSaving = false;
 
 // ══════════════════════════════════════════════
 //  INIT
@@ -1235,6 +1236,12 @@ function triggerAutoSave() {
 }
 
 async function doSave(estado = 'Incompleto', aiAnalysis = '') {
+  isSaving = true;
+  // Block finish button while saving
+  const nextBtn = document.getElementById('btn-next');
+  const isLastQ = currentQ === 25;
+  if (nextBtn && isLastQ && !showingBlockResult) nextBtn.disabled = true;
+
   try {
     await fetch(APPS_SCRIPT_URL, {
       method: 'POST',
@@ -1245,6 +1252,12 @@ async function doSave(estado = 'Incompleto', aiAnalysis = '') {
     setSaveStatus('saved');
   } catch(e) {
     setSaveStatus('error');
+  } finally {
+    isSaving = false;
+    // Re-enable finish button if we're on last question and it's answered
+    if (nextBtn && isLastQ && !showingBlockResult && answers[25] !== undefined) {
+      nextBtn.disabled = false;
+    }
   }
 }
 
