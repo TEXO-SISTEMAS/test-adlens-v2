@@ -591,8 +591,16 @@
     </div>
 
     <div id="resume-banner">
-      <span>🔄</span>
-      <span>Encontramos respuestas guardadas para este email. Podés continuar donde dejaste.</span>
+      <div style="display:flex;flex-direction:column;gap:12px;width:100%;">
+        <div style="display:flex;align-items:center;gap:10px;">
+          <span>🔄</span>
+          <span id="resume-text">Encontramos una encuesta incompleta para este email.</span>
+        </div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;">
+          <button class="btn btn-primary" style="padding:10px 20px;font-size:13px;" onclick="retomar()">Retomar donde dejé</button>
+          <button class="btn btn-secondary" style="padding:10px 20px;font-size:13px;" onclick="empezarNuevo()">Empezar nueva encuesta</button>
+        </div>
+      </div>
     </div>
 
     <div class="form-section">
@@ -728,7 +736,7 @@
 // ══════════════════════════════════════════════
 //  CONFIG
 // ══════════════════════════════════════════════
-const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxhNbYvUAf8azVpgPsH330uPWidXZw8-VHyDlGjZ6B2wMUEZz4Jn-K5lMzxSMZJAxL6/exec';
+const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwVQGVYTDlaPjd_ba-lpme3_VPnDtR749xHNeMmVeP-EVpqx4e1Je9sX4Bjg0M1EWcd/exec';
 const AI_PROXY_URL = 'https://script.google.com/macros/s/AKfycbwx6LPhQDRFAMi3Y_3yw22MoECj-eYptufMXiBrMAeQOX9s2A21CHTBHXWJScqAEviQ/exec';
 
 const DIMENSIONS = [
@@ -958,28 +966,54 @@ window.addEventListener('load', () => {
   }, 1400);
 });
 
-// Email blur → check for saved data
-document.getElementById('f-email').addEventListener('blur', async () => {
+// Buscar encuesta guardada cuando cambia email o anunciante
+let savedData = null;
+
+async function checkSavedData() {
   const email = document.getElementById('f-email').value.trim();
+  const anunciante = document.getElementById('f-anunciante').value.trim();
   if (!email || !email.includes('@')) return;
+
   try {
-    const res = await fetch(`${APPS_SCRIPT_URL}?email=${encodeURIComponent(email)}`);
+    const url = `${APPS_SCRIPT_URL}?email=${encodeURIComponent(email)}&anunciante=${encodeURIComponent(anunciante)}`;
+    const res = await fetch(url);
     const data = await res.json();
-    if (data.success && data.found !== false && data.answers && Object.keys(data.answers).length > 0) {
-      answers = data.answers;
-      if (data.formData) {
-        const fd = data.formData;
-        document.getElementById('f-nombre-enc').value = fd.nombreEncuestado || '';
-        document.getElementById('f-cargo').value = fd.cargoEncuestado || '';
-        document.getElementById('f-encuestador').value = fd.nombreEncuestador || '';
-        document.getElementById('f-anunciante').value = fd.nombreAnunciante || '';
-        document.getElementById('f-razon').value = fd.razonSocial || '';
-        document.getElementById('f-ruc').value = fd.ruc || '';
-      }
+
+    if (data.success && data.found && data.answers && Object.keys(data.answers).length > 0 && data.estado !== 'Completado') {
+      savedData = data;
+      // Mostrar banner con info del anunciante encontrado
+      const nombreAnunc = data.formData?.nombreAnunciante || '';
+      document.getElementById('resume-text').textContent =
+        `Encontramos una encuesta incompleta${nombreAnunc ? ' para ' + nombreAnunc : ''}. ¿Querés retomar o empezar de cero?`;
       document.getElementById('resume-banner').classList.add('show');
+    } else {
+      savedData = null;
+      document.getElementById('resume-banner').classList.remove('show');
     }
   } catch(e) { /* silent fail */ }
-});
+}
+
+function retomar() {
+  if (!savedData) return;
+  const fd = savedData.formData;
+  answers = savedData.answers;
+  document.getElementById('f-nombre-enc').value = fd.nombreEncuestado || '';
+  document.getElementById('f-cargo').value = fd.cargoEncuestado || '';
+  document.getElementById('f-encuestador').value = fd.nombreEncuestador || '';
+  document.getElementById('f-anunciante').value = fd.nombreAnunciante || '';
+  document.getElementById('f-razon').value = fd.razonSocial || '';
+  document.getElementById('f-ruc').value = fd.ruc || '';
+  document.getElementById('resume-banner').classList.remove('show');
+}
+
+function empezarNuevo() {
+  answers = {};
+  savedData = null;
+  document.getElementById('resume-banner').classList.remove('show');
+}
+
+document.getElementById('f-email').addEventListener('blur', checkSavedData);
+document.getElementById('f-anunciante').addEventListener('blur', checkSavedData);
 
 // ══════════════════════════════════════════════
 //  SCREEN
@@ -1265,6 +1299,7 @@ async function saveAnalysisOnly(text) {
       body: JSON.stringify({
         accion: 'saveAnalysis',
         email: formData.emailEncuestado,
+        anunciante: formData.nombreAnunciante,
         aiAnalysis: text
       }),
     });
