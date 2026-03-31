@@ -712,7 +712,7 @@
     </div>
 
     <div class="results-footer">
-      <button class="btn btn-orange" onclick="restartQuiz()">Realizar otra evaluación </button>
+      <button class="btn btn-orange" onclick="restartQuiz()">Realizar otra evaluación</button>
       <p class="footer-credit">Danilo Sosa | Texo Sistemas</p>
     </div>
   </div>
@@ -1343,21 +1343,25 @@ function renderResults() {
 async function generateAIAnalysis(dimScores, totalPct, levelLabel) {
   const dimSummary = DIMENSIONS.map((d, i) => {
     const p = Math.round((dimScores[i] / d.max) * 100);
-    return `${d.name}: ${p}%`;
-  }).join(', ');
+    let nivel = p < 35 ? 'Inicial' : p < 65 ? 'Intermedio' : 'Avanzado';
+    return `${d.name}: ${p}% (${nivel})`;
+  }).join('\n- ');
 
-  const prompt = `Sos un consultor senior de marketing estratégico. Analizá este perfil de madurez de marketing de la empresa "${formData.nombreAnunciante}" y generá un análisis breve, directo y accionable en español rioplatense (tuteo).
+  const prompt = `Sos un consultor senior de marketing estratégico de AdLens. Analizá el nivel de madurez de marketing de la empresa "${formData.nombreAnunciante}" según estos resultados y escribí un diagnóstico en español rioplatense (tuteo), sin markdown, sin asteriscos, sin numeración, solo texto plano en párrafos.
 
-Datos:
-- Nivel general: ${levelLabel} (${totalPct}%)
-- Dimensiones: ${dimSummary}
+RESULTADOS:
+- Nivel general: ${levelLabel} (${totalPct}% de madurez)
+- ${dimSummary}
 
-Escribí 3 párrafos cortos:
-1. Una lectura del perfil general (qué dice este resultado sobre la organización)
-2. Las 2 dimensiones más críticas y por qué son prioritarias
-3. Una recomendación concreta y accionable para los próximos 90 días
+Escribí exactamente 3 párrafos separados por salto de línea:
 
-Sé específico, evitá lugares comunes. Máximo 180 palabras en total.`;
+Párrafo 1: Diagnóstico general. Qué dice este perfil sobre cómo está operando el marketing en esta empresa hoy. Sé directo y específico con los números.
+
+Párrafo 2: Las 2 dimensiones con menor puntaje. Explicá por qué son un problema concreto para el negocio y qué riesgo generan si no se atienden.
+
+Párrafo 3: Una recomendación accionable y específica para los próximos 90 días. Decí exactamente qué hacer, no generalidades.
+
+Máximo 200 palabras. Sin títulos, sin bullets, sin markdown.`;
 
   try {
     const url = AI_PROXY_URL + '?prompt=' + encodeURIComponent(prompt);
@@ -1366,8 +1370,19 @@ Sé específico, evitá lugares comunes. Máximo 180 palabras en total.`;
     const text = data.success ? data.text : '';
 
     if (text) {
+      // Limpiar cualquier markdown residual
+      const clean = text
+        .replace(/#{1,3}\s/g, '')
+        .replace(/\*\*(.*?)\*\*/g, '$1')
+        .replace(/\*(.*?)\*/g, '$1')
+        .replace(/^\s*[-•]\s*/gm, '');
+
+      const paragraphs = clean.split(/\n\n+/).filter(p => p.trim()).map(p =>
+        `<p style="margin-bottom:12px;line-height:1.7;">${p.trim()}</p>`
+      ).join('');
+
       document.getElementById('ai-analysis-content').innerHTML =
-        `<div class="ai-analysis-text">${text.replace(/\n\n/g,'</p><p style="margin-top:12px;">').replace(/\n/g,'<br>')}</div>`;
+        `<div class="ai-analysis-text">${paragraphs}</div>`;
       doSave('Completado', text);
     } else {
       throw new Error('Empty response');
