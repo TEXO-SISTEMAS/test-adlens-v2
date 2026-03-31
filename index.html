@@ -728,7 +728,7 @@
 // ══════════════════════════════════════════════
 //  CONFIG
 // ══════════════════════════════════════════════
-const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyCG78rYViIXHqKTI2Th1KLK1erFMkNzxHCocwShhLKpZfVec41AtG8nLmP4U1MxPkq/exec';
+const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxhNbYvUAf8azVpgPsH330uPWidXZw8-VHyDlGjZ6B2wMUEZz4Jn-K5lMzxSMZJAxL6/exec';
 const AI_PROXY_URL = 'https://script.google.com/macros/s/AKfycbwx6LPhQDRFAMi3Y_3yw22MoECj-eYptufMXiBrMAeQOX9s2A21CHTBHXWJScqAEviQ/exec';
 
 const DIMENSIONS = [
@@ -1129,7 +1129,7 @@ function renderQuestion(qNum) {
 function selectOption(qNum, score) {
   answers[qNum] = score;
   document.getElementById('btn-next').disabled = false;
-  renderQuestion(qNum); // re-render to show selection
+  renderQuestion(qNum);
   triggerAutoSave();
 }
 
@@ -1239,24 +1239,36 @@ function triggerAutoSave() {
 
 async function doSave(estado = 'Incompleto', aiAnalysis = '') {
   if (isCompleted && estado === 'Incompleto') return;
-
   const myVersion = ++saveVersion;
   isSaving = true;
-
   try {
     await fetch(APPS_SCRIPT_URL, {
       method: 'POST',
       mode: 'no-cors',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ formData, answers, estado, aiAnalysis }),
+      body: JSON.stringify({ accion: 'save', formData, answers, estado, aiAnalysis }),
     });
-    // Solo actualizar estado si este save sigue siendo el más reciente
     if (myVersion === saveVersion) setSaveStatus('saved');
   } catch(e) {
     if (myVersion === saveVersion) setSaveStatus('error');
   } finally {
     if (myVersion === saveVersion) isSaving = false;
   }
+}
+
+async function saveAnalysisOnly(text) {
+  try {
+    await fetch(APPS_SCRIPT_URL, {
+      method: 'POST',
+      mode: 'no-cors',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        accion: 'saveAnalysis',
+        email: formData.emailEncuestado,
+        aiAnalysis: text
+      }),
+    });
+  } catch(e) { /* silent */ }
 }
 
 function setSaveStatus(status) {
@@ -1275,8 +1287,10 @@ function setSaveStatus(status) {
 //  FINISH
 // ══════════════════════════════════════════════
 async function finishQuiz() {
-  clearTimeout(saveTimeout); // cancelar cualquier auto-save pendiente
+  clearTimeout(saveTimeout); // cancelar auto-save pendiente
   isCompleted = true;
+  // Guardar estado Completado sin análisis primero, esperar confirmación
+  await doSave('Completado', '');
   showScreen('results');
   renderResults();
 }
@@ -1448,8 +1462,8 @@ function generateAIAnalysis(dimScores, totalPct, levelLabel) {
   document.getElementById('ai-analysis-content').innerHTML =
     `<div class="ai-analysis-text">${paragraphs}</div>`;
 
-  doSave('Completado', fullText);
-  console.log('generateAIAnalysis: llamando doSave con texto de', fullText.length, 'chars');
+  // Guardar análisis en columna separada
+  saveAnalysisOnly(fullText);
 }
 
 // ══════════════════════════════════════════════
