@@ -1236,6 +1236,7 @@ function triggerAutoSave() {
 }
 
 async function doSave(estado = 'Incompleto', aiAnalysis = '') {
+  console.log('doSave llamado:', estado, 'análisis chars:', aiAnalysis.length);
   isSaving = true;
 
   // Bloquear botón final solo si estamos en la pantalla del quiz
@@ -1449,6 +1450,7 @@ function generateAIAnalysis(dimScores, totalPct, levelLabel) {
     `<div class="ai-analysis-text">${paragraphs}</div>`;
 
   doSave('Completado', fullText);
+  console.log('generateAIAnalysis: llamando doSave con texto de', fullText.length, 'chars');
 }
 
 // ══════════════════════════════════════════════
